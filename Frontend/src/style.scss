@@ -1,0 +1,20 @@
+// Jitne bhi global(fixed), primary components hote hain unak styling yahan pe
+@use "./style/buttons.scss";
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    width: 100%;
+    background-color: #FBF5F3;
+    font-family: "Signika Negative", sans-serif;
+}
+
+.highlight{
+    color: aquamarine;
+}

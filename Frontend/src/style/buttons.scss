@@ -1,0 +1,26 @@
+.button {
+    border: 1.5px solid black;
+    outline: none;
+    padding-inline: 1.5rem;
+    padding-block: 0.75rem;
+    border-radius: 1.2rem;
+    cursor: pointer;
+
+    transition: all 0.3s ease-in-out;        // all - iske badle transform h use krna hota hai but all mein sb aa jata hai
+
+    &.primary-button {
+        background-color: #48adfa;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    &.secondary-button {
+        background-color: #fa4848;
+        color: white;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    &:active {
+        transform: scale(0.9);
+    }
+}

@@ -1,0 +1,113 @@
+const { GoogleGenAI } = require("@google/genai")
+const { z } = require("zod")
+const { zodToJsonSchema } = require("zod-to-json-schema")
+const puppeteer = require("puppeteer")
+
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY
+})
+
+const interviewReportSchema = z.object({
+
+    // title: z.string().describe("The Title Of The Job For Which The Interview Report Is Generated"),
+    matchScore: z.number().describe("A score between 0 and 100 indicating how well the candidate's profile matches the job describe"),
+
+    technicalQuestions: z.array(z.object({
+        question: z.string().describe("The Technical Question Can be Asked In The Interview"),
+        intention: z.string().describe("The Intention Of Interviewer Behind Asking This Question"),
+        answer: z.string().describe("How To Answer This Question, What Points To Cover, What Approach To Take etc.")
+    })).describe("Technical Questions That Can Be Asked In The Interview Along With Their Intention And How To Answer Them"),
+
+    behaviouralQuestions: z.array(z.object({
+        question: z.string().describe("The Behavioural Question Can be Asked In The Interview"),
+        intention: z.string().describe("The Intention Of Interviewer Behind Asking This Question"),
+        answer: z.string().describe("How To Answer This Question, What Points To Cover, What Approach To Take etc.")
+    })).describe("Behavioural Questions That Can Be Asked In The Interview Along With Their Intention And How To Answer Them"),
+
+    skillGaps: z.array(z.object({
+        skill: z.string().describe("The Skill Which The Candidate Is Lacking"),
+        severity: z.enum([ "low", "medium", "high"]).describe("The Severity Of This Skill Gap, i.e. How Important Is This Skill For The Job And How Much It Can Impact The Candidate's Chances")
+    })).describe("List Of Skill Gaps In The Candidate's Profile Along With Their Severity"),
+
+    preparationPlan: z.array(z.object({
+        day: z.number().describe("The Day Number In The Preparation Plan, Starting From 1"),
+        focus: z.string().describe("The Main Focus Of This Day In The Preparation Plan, e.g. Data Structures & Algorithm, System Design, Mock Interviews etc."),
+        tasks: z.array(z.string()).describe("List Of Tasks To Be Done On This Day To Follow The Preparation Plan, e.g. Read A Specific Book Or Article, Solve A Set Of Problems, Watch A Video etc.")
+    })).describe("A Day-Wise Preparation Plan For The Candidate To Follow In Order To Prepare For The Interview Effectively"),
+    title: z.string().describe("The Title Of The Job For Which The Interview Report Is Generated")
+})
+
+async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
+
+    const prompt = `Generate An Interview Report For A Candidate With The Following Details:
+                        Resume: ${resume}
+                        Self Description: ${selfDescription}
+                        Job Description: ${jobDescription}
+                    `
+    const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: zodToJsonSchema(interviewReportSchema, {
+                target: "openApi3",
+                $refStrategy: "none"
+            })
+        } 
+    })
+
+    return JSON.parse(response.text)
+}
+
+async function generatePdfFromHtml(htmlContent) {
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.setContent(htmlContent, { waitUntil: "networkidle0" })
+
+    const pdfBuffer = await page.pdf({ 
+        format: "A4", margin: {
+            top: "20mm",
+            bottom: "20mm",
+            left: "15mm",
+            right: "15mm"
+        } 
+    })
+    await browser.close()
+    return pdfBuffer
+}
+
+async function generateResumePdf({ resume, selfDescription, jobDescription }) {
+
+    const resumePdfSchema = z.object({
+        html: z.string().describe("The HTML Content Of The Resume Which Ca Be Converted Into PDF Using Any Library Like Puppeteer.")
+    })
+
+    const prompt = `Generate A Resume For A Candidate With The Following Details:
+                        Resume: ${resume}
+                        Self Description: ${selfDescription}
+                        Job Description: ${jobDescription}
+                        
+                        The Response Should Be A JSON Object With A Single Field "html" Which Contains The HTML Content Of The Resume Which Can Be Converted To PDF Using Any Library Like Puppeteer.
+                        The Resume Should Be Tailored For The Given Job Description And Should Highlight The Candidate's Strengths And Relevant Experience. The HTML Content Should Be Well-Formatted And Structured, Making It Easy To Read And Visually Appealing.
+                        The Content Of Resume Should Be Not Sound Like It's Generated By AI And Should Be As Close As Possible To A Real Human-Written Resume.
+                        You Can Highlight The Content Using Some Colors Or Different Font Styles But The Overall Design Should Be Simple And Professional.
+                        The Content Should be ATS Friendly, i.e. It Should Be Easily Parsable By ATS Systems Without Losing Important Information.
+                        The Resume Should Not Be So Lengthy, It Should Ideally Be 1-2 Pages Long When Converted To PDF. Focus On Quality Rather Than Quantity And Make Sure To Include All The Relevant Information That Can Increase The Candidate's Chances Of Getting An Interview Call For The Given Job Description.
+                    `
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: zodToJsonSchema(resumePdfSchema)
+        }
+    })
+
+    const jsonContent = JSON.parse(response.text)
+    const pdfBuffer = await generatePdfFromHtml(jsonContent.html)
+    return pdfBuffer
+}
+
+
+module.exports = { generateInterviewReport, generateResumePdf }
